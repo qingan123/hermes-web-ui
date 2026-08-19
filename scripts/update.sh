@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+APP_DIR=${APP_DIR:-}; PORT=${PORT:-};
+if [[ -z "$APP_DIR" ]]; then [[ -t 0 ]] || { echo '非交互模式需设置 APP_DIR 和 PORT' >&2; exit 1; }; mapfile -t rows < <(for d in /opt/* /root/*; do [[ -f "$d/docker-compose.yml" ]] || continue; p=$(grep -oE '[0-9]+:6060' "$d/docker-compose.yml" | head -1 | cut -d: -f1); printf '%s\t%s\n' "${p:-unknown}" "$d"; done); ((${#rows[@]})) || { echo '未发现实例' >&2; exit 1; }; printf '%s\n' "${rows[@]}" | nl -v1 -s') '; read -r -p '选择编号或端口: ' c; row=$(printf '%s\n' "${rows[@]}" | awk -F '\t' -v c="$c" 'NR==c||$1==c{print;exit}'); [[ -n "$row" ]] || exit 1; PORT=$(printf '%s' "$row"|cut -f1); APP_DIR=$(printf '%s' "$row"|cut -f2); fi
+cd "$APP_DIR"; [[ -z "$(git status --porcelain)" ]] || { echo '工作树有未提交修改' >&2; exit 1; }; [[ -f .env ]] && cp -a .env ".env.backup.$(date +%Y%m%d-%H%M%S)"; git fetch origin main; git reset --hard origin/main; docker compose --env-file .env up -d --build; curl -fsS "http://127.0.0.1:${PORT:-6060}" >/dev/null
